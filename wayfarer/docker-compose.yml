@@ -1,0 +1,11 @@
+services:
+  wayfarer:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env
+    volumes:
+      - wayfarer-data:/data
+    restart: unless-stopped
+volumes:
+  wayfarer-data:
