@@ -71,22 +71,22 @@ Data is stored in the `wayfarer-data` volume. Put it behind HTTPS (Caddy, nginx,
 
 **Any Node host (Railway, Render, Fly.io, a VPS)**: `npm ci && npm run build && node .next/standalone/server.js`. You need a persistent disk for `DATABASE_PATH`.
 
-### Render free demo
+### Render free India demo
 
-The included `render.yaml` configures a free Docker web service using Anthropic for planning. To deploy:
+The included `render.yaml` configures a free Docker web service that builds simple Indian city itineraries from nearby named OpenStreetMap attractions. This mode does not call Anthropic or another paid model. It is less personalized than AI planning: it does not interpret notes or constraints, and venue listings may be incomplete. Map data is from [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
 
 1. Sign in to Render and choose **New → Blueprint**.
 2. Connect this GitHub repository and select the `main` branch.
-3. Add your `ANTHROPIC_API_KEY` when Render prompts for the secret. Create/manage the key in the [Anthropic Console](https://console.anthropic.com/settings/keys); never commit it or put it in source control.
-4. Deploy the blueprint and wait for `/api/health` to pass.
+3. Review the `wayfarer` free web service and deploy the blueprint. No model API key is required.
+4. Wait for `/api/health` to pass.
 
-This free demo uses an ephemeral filesystem: saved trips can disappear whenever Render restarts or redeploys the service. Keeping trips requires a paid Render web service with a persistent disk (or migrating the database to hosted Postgres). The app also calls Anthropic on behalf of public visitors; the configured low rate limits reduce, but do not eliminate, API usage and abuse risk. Set a billing limit with your model provider before sharing the URL.
+This free demo uses an ephemeral filesystem: saved trips can disappear whenever Render restarts or redeploys the service. Keeping trips requires a paid Render web service with a persistent disk (or migrating the database to hosted Postgres). The Render deployment uses a low rate limit to reduce abuse.
 
 **Vercel / serverless**: not as-is. The filesystem is ephemeral there, so swap `src/lib/db.ts` for a hosted database (Postgres, Turso). It is a single file with six functions. Planning also needs up to 5 minutes, so check your plan's function timeout.
 
 ## Configuration
 
-See `.env.example`. Set `AI_PROVIDER` to `anthropic` (default) or `ollama`. Use `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` for Anthropic; use `OLLAMA_BASE_URL` and `OLLAMA_MODEL` for Ollama. `ENABLE_WEB_SEARCH` applies only to Anthropic. `RATE_LIMIT_PER_HOUR` and `DAILY_PLAN_CAP` configure rate limits.
+See `.env.example`. Set `AI_PROVIDER` to `anthropic` (default), `ollama`, or `india` for the no-model, OpenStreetMap-based India planner. Use `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` for Anthropic; use `OLLAMA_BASE_URL` and `OLLAMA_MODEL` for Ollama. `ENABLE_WEB_SEARCH` applies only to Anthropic. `RATE_LIMIT_PER_HOUR` and `DAILY_PLAN_CAP` configure rate limits.
 
 ## Layout
 

@@ -5,7 +5,7 @@ import AgentLog from './AgentLog';
 import PlannerForm from './PlannerForm';
 import { useAgentStream, type FieldIssue } from '@/lib/useAgentStream';
 
-export default function PlannerShell({ localMode = false }: { localMode?: boolean }) {
+export default function PlannerShell({ localMode = false, mapOnly = false }: { localMode?: boolean; mapOnly?: boolean }) {
   const router = useRouter();
   const agent = useAgentStream();
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +36,8 @@ export default function PlannerShell({ localMode = false }: { localMode?: boolea
           </p>
           <ul className="muted" style={{ paddingLeft: 20, marginTop: 18, display: 'grid', gap: 6 }}>
             <li>Day-by-day timeline with map pins, weather and travel times</li>
-            <li>Change anything afterwards by just asking</li>
-            <li>Local mode plans India trips with a smaller model and INR pricing</li>
+            {!mapOnly && <li>Change anything afterwards by just asking</li>}
+            <li>{mapOnly ? 'India-only, map-based planning without a paid AI model' : 'Local India mode uses mapped attractions'}</li>
             <li>Export to your calendar, print it, or share a link</li>
           </ul>
         </div>

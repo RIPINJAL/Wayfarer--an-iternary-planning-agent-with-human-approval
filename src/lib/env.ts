@@ -2,8 +2,8 @@ import 'server-only';
 
 const provider = process.env.AI_PROVIDER ?? 'anthropic';
 
-if (provider !== 'anthropic' && provider !== 'ollama') {
-  throw new Error('AI_PROVIDER must be either "anthropic" or "ollama".');
+if (provider !== 'anthropic' && provider !== 'ollama' && provider !== 'india') {
+  throw new Error('AI_PROVIDER must be "anthropic", "ollama", or "india".');
 }
 
 function int(name: string, fallback: number): number {

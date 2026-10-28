@@ -42,7 +42,7 @@ export default function PlannerForm({ onSubmit, disabled, issues, localMode = fa
         <label htmlFor="dest">Where are you going?</label>
         <input id="dest" type="text" required maxLength={120} placeholder={localMode ? 'Jaipur, India' : 'Lisbon, Portugal'} value={destination} onChange={(e) => setDestination(e.target.value)} autoComplete="off" aria-describedby={err('destination') ? 'dest-err' : undefined} />
         {err('destination') && <span id="dest-err" className="err">{err('destination')}</span>}
-        {localMode && <span className="hint">Local Ollama planning currently supports Indian cities only.</span>}
+        {localMode && <span className="hint">The current planner supports Indian cities only.</span>}
       </div>
       <div className="field">
         <label htmlFor="origin">Starting from <span className="hint">(optional, helps with arrival and departure days)</span></label>

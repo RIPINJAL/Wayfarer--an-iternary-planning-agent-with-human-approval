@@ -30,9 +30,18 @@ describe('AI provider configuration', () => {
     expect(env.anthropicKey).toBe('ollama');
   });
 
+  it('supports the no-model India planner without an Anthropic API key', async () => {
+    vi.stubEnv('AI_PROVIDER', 'india');
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    const { env } = await import('@/lib/env');
+
+    expect(env.provider).toBe('india');
+    expect(() => env.anthropicKey).toThrow('ANTHROPIC_API_KEY is not set');
+  });
+
   it('rejects unsupported provider names', async () => {
     vi.stubEnv('AI_PROVIDER', 'unknown');
 
-    await expect(import('@/lib/env')).rejects.toThrow('AI_PROVIDER must be either "anthropic" or "ollama".');
+    await expect(import('@/lib/env')).rejects.toThrow('AI_PROVIDER must be "anthropic", "ollama", or "india".');
   });
 });

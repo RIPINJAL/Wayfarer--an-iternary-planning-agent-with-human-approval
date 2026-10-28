@@ -5,6 +5,7 @@ import { checkItineraryAgainstBrief, ItinerarySchema, tripDays, type AgentEvent,
 import { newTripPrompt, refinePrompt, SYSTEM_PROMPT } from './prompts';
 import { completeDraft } from './complete-draft';
 import { runLocalIndiaPlanner } from './local-india';
+import { runOpenDataIndiaPlanner } from './open-data-india';
 import {
   CLIENT_TOOLS, findClientTool, jsonSchemaOf, submitInputSchema, SUBMIT_DESCRIPTION, SUBMIT_TOOL_NAME, type ToolContext,
 } from './tools';
@@ -73,6 +74,9 @@ function errMsg(e: unknown): string {
  * and stop when it delivers a valid itinerary through submit_itinerary.
  */
 export async function runAgent(opts: RunOptions): Promise<Itinerary> {
+  if (env.provider === 'india') {
+    return runOpenDataIndiaPlanner(opts.brief, opts.emit, opts.signal);
+  }
   if (env.provider === 'ollama') {
     return runLocalIndiaPlanner(opts.brief, opts.emit, opts.signal, opts.current, opts.instruction);
   }

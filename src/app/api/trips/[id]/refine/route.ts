@@ -4,6 +4,7 @@ import { getTrip, updateItinerary } from '@/lib/db';
 import { getOwner } from '@/lib/owner';
 import { checkPlanLimit } from '@/lib/ratelimit';
 import { sseResponse } from '@/lib/sse';
+import { env } from '@/lib/env';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,9 @@ const Body = z.object({ instruction: z.string().trim().min(3, 'Tell us what to c
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, { params }: Ctx) {
+  if (env.provider === 'india') {
+    return Response.json({ error: 'The free public India planner does not support AI itinerary changes.' }, { status: 501 });
+  }
   const owner = await getOwner();
   if (!owner) return Response.json({ error: 'Session missing. Reload the page and try again.' }, { status: 401 });
   const { id } = await params;

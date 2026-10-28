@@ -10,7 +10,7 @@ import { useAgentStream } from '@/lib/useAgentStream';
 
 const SUGGESTIONS = ['Make day 2 more relaxed', 'Swap one dinner for something vegetarian', 'Add a rainy-day backup for day 1', 'Cut the budget by about 15%'];
 
-export default function TripWorkspace({ initial }: { initial: TripRecord }) {
+export default function TripWorkspace({ initial, allowRefine = true }: { initial: TripRecord; allowRefine?: boolean }) {
   const router = useRouter();
   const agent = useAgentStream();
   const [trip, setTrip] = useState(initial);
@@ -92,7 +92,7 @@ export default function TripWorkspace({ initial }: { initial: TripRecord }) {
 
       <ItineraryView itinerary={it} />
 
-      <section className="refine panel" aria-labelledby="refine-h">
+      {allowRefine ? <section className="refine panel" aria-labelledby="refine-h">
         <h2 id="refine-h">Change the plan</h2>
         <p className="muted">Describe what you would like different. The planner updates only what it needs to.</p>
         <form onSubmit={(e) => { e.preventDefault(); void refine(instruction); }}>
@@ -101,7 +101,7 @@ export default function TripWorkspace({ initial }: { initial: TripRecord }) {
           <button className="btn primary" type="submit" disabled={agent.running || instruction.trim().length < 3}>Update plan</button>
         </form>
         <div className="suggest">{SUGGESTIONS.map((s) => <button key={s} type="button" disabled={agent.running} onClick={() => void refine(s)}>{s}</button>)}</div>
-      </section>
+      </section> : <p className="muted">This public India planner uses map listings and does not support AI itinerary changes.</p>}
     </div>
   );
 }

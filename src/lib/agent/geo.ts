@@ -1,4 +1,6 @@
 import 'server-only';
+import { z } from 'zod';
+import { env } from '../env';
 import { getJson, throttle, TtlCache } from './http';
 
 export interface GeoHit {
@@ -8,6 +10,10 @@ export interface GeoHit {
   lat: number;
   lng: number;
   timezone?: string;
+}
+
+export interface NearbyAttraction extends GeoHit {
+  kind: 'museum' | 'viewpoint' | 'attraction' | 'historic' | 'worship' | 'park';
 }
 
 const cityCache = new TtlCache<GeoHit[]>(24 * 3600_000);
@@ -89,6 +95,75 @@ export async function geocodeCity(query: string, count = 3): Promise<GeoHit[]> {
   }));
   cityCache.set(key, out);
   return out;
+}
+
+/** Fetch named, mapped attractions near a verified Indian city from OpenStreetMap's Overpass API. */
+export async function findNearbyAttractions(near: { lat: number; lng: number }, radiusKm = 25): Promise<NearbyAttraction[]> {
+  const radiusM = Math.round(radiusKm * 1000);
+  const query = `
+[out:json][timeout:20];
+(
+  nwr(around:${radiusM},${near.lat},${near.lng})["name"]["tourism"~"^(attraction|museum|viewpoint|artwork)$"];
+  nwr(around:${radiusM},${near.lat},${near.lng})["name"]["historic"];
+  nwr(around:${radiusM},${near.lat},${near.lng})["name"]["amenity"="place_of_worship"];
+  nwr(around:${radiusM},${near.lat},${near.lng})["name"]["leisure"="park"];
+);
+out center tags;
+`;
+  const response = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      'User-Agent': `Wayfarer/1.0 (${env.contactEmail})`,
+    },
+    body: new URLSearchParams({ data: query }),
+    signal: AbortSignal.timeout(25_000),
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 200);
+    throw new Error(`HTTP ${response.status} from OpenStreetMap attraction search${detail ? `: ${detail}` : ''}`);
+  }
+  const payload: unknown = await response.json();
+  const ElementSchema = z.object({
+    type: z.enum(['node', 'way', 'relation']),
+    lat: z.number().optional(),
+    lon: z.number().optional(),
+    center: z.object({ lat: z.number(), lon: z.number() }).optional(),
+    tags: z.object({
+      name: z.string().min(1),
+      tourism: z.string().optional(),
+      historic: z.string().optional(),
+      amenity: z.string().optional(),
+      leisure: z.string().optional(),
+    }),
+  });
+  const ElementsSchema = z.object({ elements: z.array(z.unknown()) });
+  const elements = ElementsSchema.parse(payload).elements;
+  const results: NearbyAttraction[] = [];
+  const seen = new Set<string>();
+  for (const raw of elements) {
+    const parsed = ElementSchema.safeParse(raw);
+    if (!parsed.success) continue;
+    const element = parsed.data;
+    const lat = element.lat ?? element.center?.lat;
+    const lng = element.lon ?? element.center?.lon;
+    if (lat == null || lng == null || haversineKm(near, { lat, lng }) > radiusKm) continue;
+    const name = element.tags.name.trim();
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const kind = element.tags.tourism === 'museum' ? 'museum'
+      : element.tags.tourism === 'viewpoint' ? 'viewpoint'
+        : element.tags.tourism ? 'attraction'
+          : element.tags.historic ? 'historic'
+            : element.tags.amenity === 'place_of_worship' ? 'worship'
+              : 'park';
+    results.push({ name, country: 'India', lat, lng, kind });
+    if (results.length >= 100) break;
+  }
+  return results;
 }
 
 /** Find a venue/landmark through OpenStreetMap, Nominatim, then matching Wikipedia coordinates. */
