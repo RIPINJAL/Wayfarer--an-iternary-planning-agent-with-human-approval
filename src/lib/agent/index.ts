@@ -1,8 +1,10 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../env';
-import { checkItineraryAgainstBrief, ItinerarySchema, type AgentEvent, type Brief, type Itinerary } from '../schemas';
+import { checkItineraryAgainstBrief, ItinerarySchema, tripDays, type AgentEvent, type Brief, type Itinerary } from '../schemas';
 import { newTripPrompt, refinePrompt, SYSTEM_PROMPT } from './prompts';
+import { completeDraft } from './complete-draft';
+import { runLocalIndiaPlanner } from './local-india';
 import {
   CLIENT_TOOLS, findClientTool, jsonSchemaOf, submitInputSchema, SUBMIT_DESCRIPTION, SUBMIT_TOOL_NAME, type ToolContext,
 } from './tools';
@@ -71,9 +73,15 @@ function errMsg(e: unknown): string {
  * and stop when it delivers a valid itinerary through submit_itinerary.
  */
 export async function runAgent(opts: RunOptions): Promise<Itinerary> {
+  if (env.provider === 'ollama') {
+    return runLocalIndiaPlanner(opts.brief, opts.emit, opts.signal, opts.current, opts.instruction);
+  }
   const { brief, emit, signal } = opts;
   const ctx: ToolContext = { brief };
   const tools = buildTools();
+  const maxTokens = env.provider === 'ollama'
+    ? Math.min(env.maxOutputTokens, Math.max(4096, tripDays(brief.startDate, brief.endDate) * 2048))
+    : env.maxOutputTokens;
 
   const messages: Anthropic.Messages.MessageParam[] = [
     {
@@ -89,7 +97,14 @@ export async function runAgent(opts: RunOptions): Promise<Itinerary> {
     if (signal?.aborted) throw new Error('Cancelled');
 
     const stream = client().messages.stream(
-      { model: env.model, max_tokens: env.maxOutputTokens, system: SYSTEM_PROMPT, tools, messages },
+      {
+        model: env.model,
+        max_tokens: maxTokens,
+        system: SYSTEM_PROMPT,
+        tools,
+        messages,
+        ...(env.provider === 'ollama' ? { thinking: { type: 'disabled' as const } } : {}),
+      },
       { signal },
     );
 
@@ -137,31 +152,35 @@ export async function runAgent(opts: RunOptions): Promise<Itinerary> {
       uses.map(async (u): Promise<Anthropic.Messages.ToolResultBlockParam> => {
         // ---- final delivery ----
         if (u.name === SUBMIT_TOOL_NAME) {
-          const parsed = ItinerarySchema.safeParse(u.input);
+          const { draft, fields } = completeDraft(u.input, brief.currency);
+          const parsed = ItinerarySchema.safeParse(draft);
           if (!parsed.success) {
             const issues = parsed.error.issues.slice(0, 8).map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
-            emit({ type: 'tool', id: u.id, name: u.name, label: 'Fixing a few details', state: 'error' });
+            emit({ type: 'tool', id: u.id, name: u.name, label: 'Fixing a few details', state: 'error', detail: issues.slice(0, 4).join('; ') });
             return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: `Validation failed:\n- ${issues.join('\n- ')}\nFix these and call submit_itinerary again with the full itinerary.` };
           }
           const problems = checkItineraryAgainstBrief(parsed.data, brief);
           if (problems.length) {
-            emit({ type: 'tool', id: u.id, name: u.name, label: 'Double-checking the plan', state: 'error' });
+            emit({ type: 'tool', id: u.id, name: u.name, label: 'Double-checking the plan', state: 'error', detail: problems.slice(0, 4).join('; ') });
             return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: `The itinerary has problems:\n- ${problems.join('\n- ')}\nFix these and call submit_itinerary again with the full itinerary.` };
           }
           accepted = parsed.data;
-          emit({ type: 'tool', id: u.id, name: u.name, label: 'Itinerary ready', state: 'done' });
-          return { type: 'tool_result', tool_use_id: u.id, content: 'Accepted.' };
+          const detail = fields.length ? `Completed from the plan: ${fields.join(', ')}` : undefined;
+          emit({ type: 'tool', id: u.id, name: u.name, label: 'Itinerary ready', state: 'done', detail });
+          return { type: 'tool_result', tool_use_id: u.id, content: detail ? `Accepted. ${detail}.` : 'Accepted.' };
         }
 
         // ---- data tools ----
         const tool = findClientTool(u.name);
         if (!tool) {
+          emit({ type: 'tool', id: u.id, name: u.name, label: u.name, state: 'error', detail: `Unknown tool "${u.name}".` });
           return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: `Unknown tool "${u.name}".` };
         }
         const input = tool.schema.safeParse(u.input);
         if (!input.success) {
-          emit({ type: 'tool', id: u.id, name: u.name, label: FRIENDLY[u.name] ?? u.name, state: 'error' });
-          return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: `Invalid input: ${input.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}` };
+          const issues = input.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
+          emit({ type: 'tool', id: u.id, name: u.name, label: FRIENDLY[u.name] ?? u.name, state: 'error', detail: issues.slice(0, 4).join('; ') });
+          return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: `Invalid input: ${issues.join('; ')}` };
         }
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

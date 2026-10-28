@@ -25,6 +25,8 @@ function def<S extends z.ZodType>(d: ToolDef<S>): ToolDef<S> {
 }
 
 const Point = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
+const MAX_PLACES_PER_LOOKUP = 30;
+const PLACE_LOOKUP_BATCH_SIZE = 15;
 
 export const geocodePlace = def({
   name: 'geocode_place',
@@ -46,19 +48,25 @@ export const geocodePlace = def({
 export const locatePlaces = def({
   name: 'locate_places',
   description:
-    'Resolve up to 15 specific venues or landmarks (museums, restaurants, viewpoints, stations) to coordinates so they can be mapped and travel times can be estimated. Always use this for stops you plan to include. Places that cannot be found are returned as null: replace them or leave coordinates out.',
+    `Resolve up to ${MAX_PLACES_PER_LOOKUP} specific venues or landmarks (museums, restaurants, viewpoints, stations) to coordinates so they can be mapped and travel times can be estimated. Always use this for stops you plan to include. Places that cannot be found are returned as null: replace them or leave coordinates out.`,
   schema: z.object({
     city: z.string().min(2).max(120).describe('City the places are in, e.g. "Lisbon"'),
-    places: z.array(z.string().min(2).max(120)).min(1).max(15),
+    places: z.array(z.string().min(2).max(120)).min(1).max(MAX_PLACES_PER_LOOKUP),
   }),
   label: (i) => `Pinning ${i.places.length} places in ${i.city}`,
   async run(i, ctx) {
-    const results = await Promise.all(
-      i.places.map(async (name) => {
-        const hit = await locatePlace(name, i.city, ctx.near);
-        return hit ? { name, lat: Number(hit.lat.toFixed(5)), lng: Number(hit.lng.toFixed(5)) } : { name, lat: null, lng: null };
-      }),
-    );
+    const results: { name: string; lat: number | null; lng: number | null }[] = [];
+    for (let start = 0; start < i.places.length; start += PLACE_LOOKUP_BATCH_SIZE) {
+      const batch = i.places.slice(start, start + PLACE_LOOKUP_BATCH_SIZE);
+      results.push(
+        ...(await Promise.all(
+          batch.map(async (name) => {
+            const hit = await locatePlace(name, i.city, ctx.near);
+            return hit ? { name, lat: Number(hit.lat.toFixed(5)), lng: Number(hit.lng.toFixed(5)) } : { name, lat: null, lng: null };
+          }),
+        )),
+      );
+    }
     return { results };
   },
 });

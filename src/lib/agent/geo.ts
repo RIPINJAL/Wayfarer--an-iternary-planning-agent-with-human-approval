@@ -13,6 +13,68 @@ export interface GeoHit {
 const cityCache = new TtlCache<GeoHit[]>(24 * 3600_000);
 const placeCache = new TtlCache<GeoHit | null>(24 * 3600_000, 2000);
 const nominatimGate = throttle(1100);
+const wikipediaGate = throttle(1500);
+let wikipediaBlockedUntil = 0;
+
+async function getWikipediaJson<T>(url: string): Promise<T | null> {
+  if (Date.now() < wikipediaBlockedUntil) return null;
+  return wikipediaGate(async () => {
+    if (Date.now() < wikipediaBlockedUntil) return null;
+    try {
+      return await getJson<T>(url);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('HTTP 429')) {
+        wikipediaBlockedUntil = Date.now() + 60_000;
+        return null;
+      }
+      throw error;
+    }
+  });
+}
+
+async function locateFromWikipedia(name: string, city: string, near: { lat: number; lng: number }): Promise<GeoHit | null> {
+  const searchName = name.split(/\s*\(/, 1)[0].trim();
+  const search = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    generator: 'search',
+    gsrsearch: `${searchName} ${city}`,
+    gsrlimit: '5',
+    prop: 'coordinates',
+    colimit: '1',
+  });
+  type S = { query?: { pages?: Record<string, { title: string; index?: number }> } };
+  const searchResults = await getWikipediaJson<S>(`https://en.wikipedia.org/w/api.php?${search}`);
+  if (!searchResults) return null;
+  const searchPages = Object.values(searchResults.query?.pages ?? {})
+    .sort((a, b) => (a.index ?? 999) - (b.index ?? 999))
+    .slice(0, 5);
+  if (!searchPages.length) return null;
+
+  const coordinateQuery = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    prop: 'coordinates',
+    titles: searchPages.map((page) => page.title).join('|'),
+    redirects: '1',
+  });
+  type W = { query?: { pages?: Record<string, { title: string; coordinates?: { lat: number; lon: number }[] }> } };
+  const results = await getWikipediaJson<W>(`https://en.wikipedia.org/w/api.php?${coordinateQuery}`);
+  if (!results) return null;
+  const candidates = Object.values(results.query?.pages ?? {})
+    .filter((page) => page.coordinates?.[0])
+    .sort((a, b) => searchPages.findIndex((page) => page.title === a.title) - searchPages.findIndex((page) => page.title === b.title));
+  const tokens = searchName.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length > 2);
+  const place = candidates.find((candidate) => {
+    const title = candidate.title.toLowerCase();
+    return tokens.length > 0 && tokens.every((token) => title.includes(token));
+  });
+  const point = place?.coordinates?.[0];
+  if (!place || !point) return null;
+
+  const hit = { name: place.title, country: 'India', lat: point.lat, lng: point.lon };
+  return haversineKm(near, hit) <= 60 ? hit : null;
+}
 
 export async function geocodeCity(query: string, count = 3): Promise<GeoHit[]> {
   const key = `${query.toLowerCase()}|${count}`;
@@ -29,7 +91,7 @@ export async function geocodeCity(query: string, count = 3): Promise<GeoHit[]> {
   return out;
 }
 
-/** Find a specific venue/landmark. Photon (OpenStreetMap) first, Nominatim as a throttled fallback. */
+/** Find a venue/landmark through OpenStreetMap, Nominatim, then matching Wikipedia coordinates. */
 export async function locatePlace(name: string, city: string, near?: { lat: number; lng: number }): Promise<GeoHit | null> {
   const q = `${name}, ${city}`;
   const key = q.toLowerCase();
@@ -61,6 +123,8 @@ export async function locatePlace(name: string, city: string, near?: { lat: numb
       if (d[0]) result = { name, lat: Number(d[0].lat), lng: Number(d[0].lon) };
     } catch { /* give up */ }
   }
+
+  if (!result && near) result = await locateFromWikipedia(name, city, near);
 
   // Reject results absurdly far from the destination (wrong "Central Park"-style matches).
   if (result && near && haversineKm(near, result) > 150) result = null;

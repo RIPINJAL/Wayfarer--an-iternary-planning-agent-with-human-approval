@@ -21,7 +21,7 @@ export const env = {
   },
   get model(): string {
     return provider === 'ollama'
-      ? process.env.OLLAMA_MODEL || 'qwen3:8b'
+      ? process.env.OLLAMA_MODEL || 'qwen3:1.7b'
       : process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
   },
   ollamaBaseUrl: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/+$/, ''),

@@ -20,7 +20,7 @@ export default function AgentLog(props: { running: boolean; steps: Step[]; narra
             <span>
               {s.label}
               <span className="sr-only">{s.state === 'running' ? ' (in progress)' : s.state === 'error' ? ' (failed)' : ' (done)'}</span>
-              {s.state === 'error' && s.detail && <span className="why"> {s.detail}</span>}
+              {s.detail && <span className="why"> {s.detail}</span>}
             </span>
           </li>
         ))}

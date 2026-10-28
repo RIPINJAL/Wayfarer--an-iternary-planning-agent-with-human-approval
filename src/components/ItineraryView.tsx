@@ -41,6 +41,7 @@ export default function ItineraryView({ itinerary: it }: { itinerary: Itinerary 
   const center = useMemo<[number, number]>(() => [it.destination.lat, it.destination.lng], [it.destination]);
   const dayCost = day.items.reduce((s, x) => s + (x.estCost ?? 0), 0);
   const maxBar = Math.max(1, ...it.budget.breakdown.map((b) => b.amount));
+  const budgetIsUnknown = it.budget.totalEstimate === 0 && it.budget.breakdown.length === 0 && it.budget.notes?.includes('means unknown, not free');
 
   function select(id: string) {
     setHighlight(id);
@@ -111,7 +112,7 @@ export default function ItineraryView({ itinerary: it }: { itinerary: Itinerary 
       <div className="extras">
         <section className="panel wide">
           <h2>Budget</h2>
-          <div className="total"><span className="muted">Estimated total for the group</span><strong>{money(it.budget.totalEstimate, cur)}</strong></div>
+          <div className="total"><span className="muted">{budgetIsUnknown ? 'Budget not estimated' : 'Estimated total for the group'}</span><strong>{budgetIsUnknown ? 'Not estimated' : money(it.budget.totalEstimate, cur)}</strong></div>
           <div className="bars">
             {it.budget.breakdown.map((b) => (
               <div className="bar" key={b.label}>

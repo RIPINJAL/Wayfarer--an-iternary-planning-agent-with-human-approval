@@ -12,7 +12,10 @@ export async function getJson<T = unknown>(url: string, timeoutMs = 8000): Promi
       headers: { 'User-Agent': UA(), Accept: 'application/json' },
       cache: 'no-store',
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${new URL(url).host}`);
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 200);
+      throw new Error(`HTTP ${res.status} from ${new URL(url).host}${detail ? `: ${detail}` : ''}`);
+    }
     return (await res.json()) as T;
   } finally {
     clearTimeout(t);

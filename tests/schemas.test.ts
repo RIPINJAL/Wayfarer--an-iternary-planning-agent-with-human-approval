@@ -7,7 +7,7 @@ describe('BriefSchema', () => {
   it('applies defaults', () => {
     const r = BriefSchema.parse(base);
     expect(r.adults).toBe(2);
-    expect(r.currency).toBe('USD');
+    expect(r.currency).toBe('INR');
     expect(r.pace).toBe('balanced');
   });
   it('rejects end before start and trips over 14 days', () => {

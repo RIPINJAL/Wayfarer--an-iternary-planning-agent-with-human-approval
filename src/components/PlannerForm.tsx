@@ -5,7 +5,7 @@ import type { FieldIssue } from '@/lib/useAgentStream';
 
 const CURRENCIES = ['AED', 'AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'HKD', 'IDR', 'INR', 'JPY', 'KRW', 'MXN', 'NZD', 'SGD', 'THB', 'TRY', 'USD', 'ZAR'];
 
-export default function PlannerForm({ onSubmit, disabled, issues }: { onSubmit: (brief: Record<string, unknown>) => void; disabled: boolean; issues: FieldIssue[] }) {
+export default function PlannerForm({ onSubmit, disabled, issues, localMode = false }: { onSubmit: (brief: Record<string, unknown>) => void; disabled: boolean; issues: FieldIssue[]; localMode?: boolean }) {
   const [destination, setDestination] = useState('');
   const [origin, setOrigin] = useState('');
   const [startDate, setStart] = useState('');
@@ -14,7 +14,7 @@ export default function PlannerForm({ onSubmit, disabled, issues }: { onSubmit: 
   const [children, setChildren] = useState(0);
   const [budgetLevel, setLevel] = useState('moderate');
   const [budgetAmount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState(localMode ? 'INR' : 'USD');
   const [pace, setPace] = useState('balanced');
   const [interests, setInterests] = useState<string[]>([]);
   const [constraints, setConstraints] = useState<string[]>([]);
@@ -40,8 +40,9 @@ export default function PlannerForm({ onSubmit, disabled, issues }: { onSubmit: 
     >
       <div className="field">
         <label htmlFor="dest">Where are you going?</label>
-        <input id="dest" type="text" required maxLength={120} placeholder="Lisbon, Portugal" value={destination} onChange={(e) => setDestination(e.target.value)} autoComplete="off" aria-describedby={err('destination') ? 'dest-err' : undefined} />
+        <input id="dest" type="text" required maxLength={120} placeholder={localMode ? 'Jaipur, India' : 'Lisbon, Portugal'} value={destination} onChange={(e) => setDestination(e.target.value)} autoComplete="off" aria-describedby={err('destination') ? 'dest-err' : undefined} />
         {err('destination') && <span id="dest-err" className="err">{err('destination')}</span>}
+        {localMode && <span className="hint">Local Ollama planning currently supports Indian cities only.</span>}
       </div>
       <div className="field">
         <label htmlFor="origin">Starting from <span className="hint">(optional, helps with arrival and departure days)</span></label>
@@ -83,9 +84,10 @@ export default function PlannerForm({ onSubmit, disabled, issues }: { onSubmit: 
       </div>
       <div className="field half">
         <label htmlFor="cur">Currency</label>
-        <select id="cur" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        <select id="cur" value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={localMode}>
           {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
         </select>
+        {localMode && <span className="hint">Local India planning uses INR.</span>}
       </div>
 
       <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>

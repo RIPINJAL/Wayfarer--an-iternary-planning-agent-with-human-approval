@@ -25,7 +25,7 @@ export const BriefSchema = z
     children: z.coerce.number().int().min(0).max(8).default(0),
     budgetLevel: z.enum(['budget', 'moderate', 'comfortable', 'luxury']).default('moderate'),
     budgetAmount: z.coerce.number().positive().max(10_000_000).optional(),
-    currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code').default('USD'),
+    currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code').default('INR'),
     pace: z.enum(['relaxed', 'balanced', 'packed']).default('balanced'),
     interests: z.array(z.string().trim().min(1).max(40)).max(14).default([]),
     constraints: z.array(z.string().trim().min(1).max(40)).max(10).default([]),

@@ -10,7 +10,7 @@ It is a real agent, not a single prompt. The configured model decides which tool
 |---|---|---|
 | `geocode_place` | Open-Meteo geocoding | Find the destination, timezone, coordinates |
 | `get_weather` | Open-Meteo forecast / archive | Real forecast within ~15 days, otherwise observed weather for the same dates last year (labelled as such) |
-| `locate_places` | Photon (OpenStreetMap), Nominatim fallback | Pin every stop to real coordinates |
+| `locate_places` | Photon (OpenStreetMap), Nominatim, Wikimedia coordinates fallback | Pin every stop to real coordinates |
 | `estimate_travel` | Built-in maths | Check each leg of the day is realistic |
 | `convert_currency` | Frankfurter (ECB rates) | Budget in your currency |
 | `web_search` | Anthropic server tool | Current opening days, closures, events (optional) |
@@ -39,10 +39,11 @@ Needs Node 20+. No compiler needed: the SQLite driver uses bundled prebuilt bina
 Ollama runs the model on your computer, so there is no per-request model API charge. It needs enough memory and processing power, and itinerary generation may be slower than a hosted model.
 
 1. Install [Ollama](https://ollama.com/download) and start it.
-2. Download a model with tool-calling support, for example:
+2. From the project directory, create Wayfarer's smaller local model:
 
    ```bash
-   ollama pull qwen3:8b
+   ollama pull qwen3:1.7b
+   ollama create wayfarer-qwen3:1.7b -f Modelfile.ollama
    ```
 
 3. In `.env.local`, set:
@@ -50,10 +51,10 @@ Ollama runs the model on your computer, so there is no per-request model API cha
    ```dotenv
    AI_PROVIDER=ollama
    OLLAMA_BASE_URL=http://127.0.0.1:11434
-   OLLAMA_MODEL=qwen3:8b
+   OLLAMA_MODEL=wayfarer-qwen3:1.7b
    ```
 
-4. Start (or restart) Wayfarer with `npm run dev`.
+4. Start (or restart) Wayfarer with `npm run dev`. Local mode supports Indian destinations, uses INR, requests a compact structured list of places from Ollama, then checks each stop against map data and validates the finished itinerary. It plans two map-checked stops per day; prices are explicitly left unestimated.
 
 When Ollama is selected, `ANTHROPIC_API_KEY` is not needed, and Anthropic-hosted web search is disabled. The other research tools (weather, places, and currency) still use their respective services and require internet access. To switch back, set `AI_PROVIDER=anthropic` and configure `ANTHROPIC_API_KEY`.
 
