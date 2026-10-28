@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: wayfarer
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: AI_PROVIDER
+        value: anthropic
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ENABLE_WEB_SEARCH
+        value: "false"
+      - key: RATE_LIMIT_PER_HOUR
+        value: "2"
+      - key: DAILY_PLAN_CAP
+        value: "10"
